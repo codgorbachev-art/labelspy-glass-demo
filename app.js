@@ -122,7 +122,16 @@
 
   // Yandex OCR API configuration. Use the provided API key and folder ID.
   const YANDEX_OCR_API_KEY = 'AQVN1j-5PmMnopmHXZA00hi9CB_o78yOHHlZI-db';
-  const YANDEX_OCR_FOLDER_ID = 'ajem7usjsop7kacoencg';
+      const YANDEX_OCR_FOLDER_ID = 'ajem7usjsop7kacoencg';
+
+      // Cloud Function endpoint to proxy Vision OCR requests. Because direct
+      // calls to the Yandex Vision OCR API are blocked by CORS, requests must
+      // be sent via a serverless function that adds the appropriate CORS
+      // headers. Replace the empty string below with the HTTPS URL of your
+      // deployed Yandex Cloud Function (for example,
+      // 'https://functions.yandexcloud.net/d4e...'). If left empty,
+      // runOcrCloud will throw an error.
+      const YANDEX_FUNCTION_ENDPOINT = '';
 
   // OCR worker
   let worker = null;
@@ -479,8 +488,16 @@
   }
 
   async function runOcrCloud(dataUrl) {
-    // Always call Yandex OCR API directly using embedded credentials.
-    // Prepare JPEG payload (downscale to stay within API limits)
+      // Always call Yandex Cloud Function proxy for OCR. Direct calls to
+      // Vision OCR API from the browser are blocked by CORS and cannot be
+      // accessed directly. Instead, the request is forwarded to a Yandex
+      // Cloud Function (serverless backend) which performs the OCR call
+      // using the embedded API key and returns the recognized text with
+      // appropriate CORS headers. See cloud/yandex-function/index.js for
+      // implementation details. If the function URL is not provided, this
+      // call will fail.
+
+      // Prepare JPEG payload (downscale to stay within API limits)
     setOcrProgress(0.02, 'подготовка');
     const jpeg = await downscaleToJpeg(dataUrl, { maxSide: 1600, quality: 0.86 });
     const { mime, b64 } = dataUrlToBase64(jpeg);
@@ -489,21 +506,28 @@
     setOcrProgress(0.15, 'отправка');
     const langs = (ocrLang.value || 'rus+eng').split('+').filter(Boolean).map(x => x === 'rus' ? 'ru' : x);
 
+    // Build payload expected by the Yandex Cloud Function. The function
+    // accepts a JSON body with a base64-encoded image and optional
+    // parameters such as languageCodes and mimeType. Folder and API key
+    // are injected on the server side and do not need to be provided here.
     const payload = {
       mimeType: (mime || 'image/jpeg').includes('png') ? 'PNG' : 'JPEG',
       languageCodes: langs.length ? langs : ['ru', 'en'],
       model: 'page',
-      content: b64,
-      // Folder ID associates your API key with a specific folder; required for Vision OCR.
-      folderId: YANDEX_OCR_FOLDER_ID
+      image: b64
     };
 
-    const res = await fetch('https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText', {
+    // Ensure that the Yandex Cloud Function endpoint is defined. Without a
+    // valid endpoint, the OCR call cannot proceed. Replace the placeholder
+    // value below with your deployed cloud function URL.
+    if (!YANDEX_FUNCTION_ENDPOINT) {
+      throw new Error('Cloud OCR proxy endpoint is not configured');
+    }
+
+    const res = await fetch(YANDEX_FUNCTION_ENDPOINT, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Api-Key ${YANDEX_OCR_API_KEY}`,
-        'x-data-logging-enabled': 'false'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
@@ -515,8 +539,8 @@
 
     setOcrProgress(0.75, 'распознавание');
     const json = await res.json();
-    // Extract text from Yandex OCR response using helper
-    const text = extractTextFromOcrResponse(json);
+    // The cloud function returns an object { text: '...' } on success.
+    const text = (json && typeof json.text === 'string') ? json.text : '';
     setOcrProgress(1, 'готово');
     return normalizeSpaces(text);
   }
