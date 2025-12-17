@@ -1,7 +1,12 @@
 /* LabelSpy — service worker (static offline cache)
    Note: Caches only same-origin assets. CDN libs are not cached here.
+
+   Cache versioning:
+   Bump the CACHE name whenever core assets (like app.js or index.html) change.
+   This forces browsers to install a new service worker and fetch updated files
+   instead of serving stale cached versions from previous deployments.
 */
-const CACHE = 'labelspy-glass-v1';
+const CACHE = 'labelspy-glass-v2';
 
 const ASSETS = [
   './',
