@@ -117,7 +117,12 @@
   let lastImageDataUrl = '';
   let lastAnalysis = null;
   let lastEcodeRows = []; // for filtering
-  let ocrEngine = 'local'; // 'local' | 'cloud'
+  // Always use cloud OCR (Yandex). The demo no longer supports local OCR.
+  let ocrEngine = 'cloud';
+
+  // Yandex OCR API configuration. Use the provided API key and folder ID.
+  const YANDEX_OCR_API_KEY = 'AQVN1j-5PmMnopmHXZA00hi9CB_o78yOHHlZI-db';
+  const YANDEX_OCR_FOLDER_ID = 'ajem7usjsop7kacoencg';
 
   // OCR worker
   let worker = null;
@@ -142,6 +147,28 @@
       .replace(/\s+\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+  }
+
+  // ---------- Yandex OCR helper
+  // Extracts plain text lines from Yandex OCR response format. The API returns a nested
+  // structure with textAnnotation → blocks → lines → text. This helper flattens all
+  // line texts and inserts blank lines between blocks to preserve visual separation.
+  function extractTextFromOcrResponse(resp) {
+    const ta = (resp && (resp.textAnnotation || (resp.result && resp.result.textAnnotation) || (resp.response && resp.response.textAnnotation))) || null;
+    if (!ta) return '';
+    const blocks = Array.isArray(ta.blocks) ? ta.blocks : [];
+    const lines = [];
+    for (const b of blocks) {
+      const ls = Array.isArray(b.lines) ? b.lines : [];
+      for (const l of ls) {
+        if (l && typeof l.text === 'string') {
+          lines.push(l.text);
+        }
+      }
+      // Insert an empty line between blocks for better readability
+      if (ls.length) lines.push('');
+    }
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
 
   function parseNumberRu(s) {
@@ -241,14 +268,9 @@
   }
 
   function applyOcrEngineUi() {
-    $$('.seg__btn[data-ocr-engine]').forEach((b) => {
-      const active = b.dataset.ocrEngine === ocrEngine;
-      b.classList.toggle('is-active', active);
-      b.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-
-    const showCloud = (ocrEngine === 'cloud');
-    if (cloudEndpointWrap) cloudEndpointWrap.style.display = showCloud ? '' : 'none';
+    // No segmented control for OCR engine is exposed to the user anymore. Ensure the
+    // Cloud endpoint input (if present) stays hidden regardless of state.
+    if (cloudEndpointWrap) cloudEndpointWrap.style.display = 'none';
   }
 
   // ---------- File / image helpers
@@ -457,26 +479,33 @@
   }
 
   async function runOcrCloud(dataUrl) {
-    const endpoint = (cloudEndpoint.value || '').trim();
-    if (!endpoint) throw new Error('Укажите Cloud OCR endpoint.');
-
+    // Always call Yandex OCR API directly using embedded credentials.
+    // Prepare JPEG payload (downscale to stay within API limits)
     setOcrProgress(0.02, 'подготовка');
-    // Limit payload for Functions (3.5MB JSON limit): downscale + JPEG
     const jpeg = await downscaleToJpeg(dataUrl, { maxSide: 1600, quality: 0.86 });
     const { mime, b64 } = dataUrlToBase64(jpeg);
 
+    // Determine language codes: convert 'rus' to 'ru'
     setOcrProgress(0.15, 'отправка');
     const langs = (ocrLang.value || 'rus+eng').split('+').filter(Boolean).map(x => x === 'rus' ? 'ru' : x);
 
-    const res = await fetch(endpoint, {
+    const payload = {
+      mimeType: (mime || 'image/jpeg').includes('png') ? 'PNG' : 'JPEG',
+      languageCodes: langs.length ? langs : ['ru', 'en'],
+      model: 'page',
+      content: b64,
+      // Folder ID associates your API key with a specific folder; required for Vision OCR.
+      folderId: YANDEX_OCR_FOLDER_ID
+    };
+
+    const res = await fetch('https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image: b64,
-        mimeType: (mime || 'image/jpeg').includes('png') ? 'PNG' : 'JPEG',
-        languageCodes: langs.length ? langs : ['ru', 'en'],
-        model: 'page'
-      })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Api-Key ${YANDEX_OCR_API_KEY}`,
+        'x-data-logging-enabled': 'false'
+      },
+      body: JSON.stringify(payload)
     });
 
     if (!res.ok) {
@@ -486,13 +515,15 @@
 
     setOcrProgress(0.75, 'распознавание');
     const json = await res.json();
-    const text = normalizeSpaces(json?.text || '');
+    // Extract text from Yandex OCR response using helper
+    const text = extractTextFromOcrResponse(json);
     setOcrProgress(1, 'готово');
-    return text;
+    return normalizeSpaces(text);
   }
 
   async function runOcr(dataUrl) {
-    return (ocrEngine === 'cloud') ? runOcrCloud(dataUrl) : runOcrLocal(dataUrl);
+    // Always use cloud OCR via Yandex API
+    return runOcrCloud(dataUrl);
   }
 
   // ---------- Analysis helpers

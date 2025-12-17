@@ -80,8 +80,8 @@
           <div class="stat__value">На устройстве*</div>
         </div>
         <div class="stat stat--muted">
-          <div class="stat__label">* При Cloud OCR</div>
-          <div class="stat__value">данные уходят на ваш endpoint</div>
+          <div class="stat__label">* OCR</div>
+          <div class="stat__value">данные отправляются в сервис Яндекс OCR</div>
         </div>
       </div>
     </section>
@@ -111,13 +111,7 @@
         </div>
 
         <div class="controls">
-          <div class="seg">
-            <div class="seg__label">OCR</div>
-            <div class="seg__group" role="tablist" aria-label="OCR engine">
-              <button class="seg__btn is-active" type="button" data-ocr-engine="local" aria-selected="true">Локально</button>
-              <button class="seg__btn" type="button" data-ocr-engine="cloud" aria-selected="false">Cloud</button>
-            </div>
-          </div>
+          <!-- OCR mode selection removed: always using cloud OCR -->
 
           <div class="row">
             <label class="field">
@@ -129,10 +123,7 @@
               </select>
             </label>
 
-            <label class="field field--grow" id="cloudEndpointWrap">
-              <span class="field__label">Cloud OCR endpoint</span>
-              <input id="cloudEndpoint" class="field__control" type="url" placeholder="https://…/labelspy-ocr" />
-            </label>
+            <!-- Cloud OCR endpoint input removed: endpoint and API key are embedded in the app -->
           </div>
 
           <label class="toggle">
