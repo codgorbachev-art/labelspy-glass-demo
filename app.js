@@ -131,7 +131,12 @@
       // deployed Yandex Cloud Function (for example,
       // 'https://functions.yandexcloud.net/d4e...'). If left empty,
       // runOcrCloud will throw an error.
-      const YANDEX_FUNCTION_ENDPOINT = '';
+// URL of the deployed Yandex Cloud Function proxy (hosted on Vercel).
+// This proxy forwards OCR requests to the Yandex Vision API and adds CORS
+// headers. See cloud/yandex-function/index.js for implementation. The
+// endpoint is required for cloud OCR to work in the browser. If you
+// redeploy the function or change hosting, update this URL accordingly.
+const YANDEX_FUNCTION_ENDPOINT = 'https://labelspy-glass-demo-5i16.vercel.app/api/yandexOCR';
 
   // OCR worker
   let worker = null;
