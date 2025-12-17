@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LabelSpy — анализ состава по фото и тексту</title>
+  <meta name="description" content="Современное PWA‑демо: OCR по фото, поиск E‑кодов, аллергены и светофор нутриентов. Дизайн в стиле стекла." />
+  <meta name="theme-color" content="#0b1020" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- Decorative background layers -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg-blur bg-blur--a"></div>
+    <div class="bg-blur bg-blur--b"></div>
+    <div class="bg-blur bg-blur--c"></div>
+    <div class="bg-noise"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="wrap topbar__row">
+      <div class="brand">
+        <div class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+            <path d="M7.2 6.8c1.3-1.9 3.1-3 4.8-3s3.5 1.1 4.8 3c1.3 1.9 2 4 2 6.3 0 4-2.4 7.1-6.8 7.1S5 17.1 5 13.1c0-2.3.9-4.4 2.2-6.3Z" class="brand__stroke"/>
+            <path d="M12 6.1c.7-1 1.2-2.2 1.2-3.6" class="brand__stroke"/>
+          </svg>
+        </div>
+        <div class="brand__text">
+          <div class="brand__title">LabelSpy</div>
+          <div class="brand__sub">Glass UI demo · OCR · E‑коды · Аллергены</div>
+        </div>
+      </div>
+
+      <div class="topbar__actions">
+        <a id="githubLink" class="btn btn--ghost" href="https://github.com/" target="_blank" rel="noreferrer">
+          <span class="btn__icon" aria-hidden="true">↗</span>
+          GitHub
+        </a>
+        <button id="btnOpenAbout" class="btn btn--ghost" type="button">
+          <span class="btn__icon" aria-hidden="true">ⓘ</span>
+          О проекте
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero glass">
+      <div class="hero__left">
+        <h1 class="hero__title">Анализ состава без лишнего шума</h1>
+        <p class="hero__lead">
+          Загрузите фото этикетки или вставьте текст — демо попробует выделить состав, E‑коды,
+          возможные аллергены и построить «светофор» нутриентов.
+        </p>
+
+        <div class="hero__chips" aria-label="Возможности">
+          <span class="chip">OCR в браузере</span>
+          <span class="chip">E‑коды</span>
+          <span class="chip">Аллергены</span>
+          <span class="chip">Светофор</span>
+          <span class="chip">PWA</span>
+        </div>
+      </div>
+
+      <div class="hero__right">
+        <div class="stat">
+          <div class="stat__label">Режим</div>
+          <div class="stat__value">Демо</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Хранение</div>
+          <div class="stat__value">Локально</div>
+        </div>
+        <div class="stat">
+          <div class="stat__label">Приватность</div>
+          <div class="stat__value">На устройстве*</div>
+        </div>
+        <div class="stat stat--muted">
+          <div class="stat__label">* При Cloud OCR</div>
+          <div class="stat__value">данные уходят на ваш endpoint</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <!-- Left: Image + OCR -->
+      <section class="glass card">
+        <div class="card__head">
+          <h2 class="card__title">Фото упаковки</h2>
+          <div class="card__subtitle">Лучше работает на кадре с одним блоком «Состав» и хорошей резкостью.</div>
+        </div>
+
+        <div id="dropZone" class="drop">
+          <input id="fileInput" class="drop__input" type="file" accept="image/*" />
+          <div class="drop__content">
+            <div class="drop__icon" aria-hidden="true">⬆</div>
+            <div class="drop__text">
+              <div class="drop__title">Перетащите фото сюда</div>
+              <div class="drop__hint">или нажмите, чтобы выбрать файл</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview">
+          <img id="imgPreview" alt="Предпросмотр изображения" />
+          <div id="imgPlaceholder" class="preview__placeholder">Предпросмотр появится здесь</div>
+        </div>
+
+        <div class="controls">
+          <div class="seg">
+            <div class="seg__label">OCR</div>
+            <div class="seg__group" role="tablist" aria-label="OCR engine">
+              <button class="seg__btn is-active" type="button" data-ocr-engine="local" aria-selected="true">Локально</button>
+              <button class="seg__btn" type="button" data-ocr-engine="cloud" aria-selected="false">Cloud</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field">
+              <span class="field__label">Язык</span>
+              <select id="ocrLang" class="field__control">
+                <option value="rus+eng" selected>Русский + English</option>
+                <option value="rus">Русский</option>
+                <option value="eng">English</option>
+              </select>
+            </label>
+
+            <label class="field field--grow" id="cloudEndpointWrap">
+              <span class="field__label">Cloud OCR endpoint</span>
+              <input id="cloudEndpoint" class="field__control" type="url" placeholder="https://…/labelspy-ocr" />
+            </label>
+          </div>
+
+          <label class="toggle">
+            <input id="optEnhanceOcr" type="checkbox" checked />
+            <span class="toggle__ui" aria-hidden="true"></span>
+            <span class="toggle__text">
+              Улучшать распознавание (препроцессинг)
+              <span class="muted">— повышает качество, может быть медленнее</span>
+            </span>
+          </label>
+
+          <div class="row row--actions">
+            <button id="btnOcr" class="btn btn--primary" type="button" disabled>
+              <span class="btn__spark" aria-hidden="true"></span>
+              Распознать
+            </button>
+            <button id="btnUseSample" class="btn btn--ghost" type="button">Загрузить пример</button>
+          </div>
+
+          <div class="progress">
+            <div class="progress__top">
+              <div id="ocrStatus" class="progress__status">OCR: ожидание</div>
+              <div id="ocrPct" class="progress__pct">0%</div>
+            </div>
+            <div class="progress__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="ocrBar" class="progress__fill" style="width:0%"></div>
+            </div>
+          </div>
+
+          <details class="help glass glass--thin">
+            <summary>Как получить лучшее OCR</summary>
+            <ul>
+              <li>Снимайте крупно: блок «Состав» должен занимать большую часть кадра.</li>
+              <li>Избегайте бликов и смаза. Подходит мягкий свет и опора для рук.</li>
+              <li>Если текст белый на тёмном фоне — включённый препроцессинг часто помогает.</li>
+            </ul>
+          </details>
+        </div>
+      </section>
+
+      <!-- Right: Text -->
+      <section class="glass card">
+        <div class="card__head">
+          <h2 class="card__title">Текст</h2>
+          <div class="card__subtitle">Можно вставить состав вручную — или отредактировать результат OCR.</div>
+        </div>
+
+        <textarea id="textInput" class="textarea" placeholder="Вставьте сюда состав продукта или дождитесь OCR…"></textarea>
+
+        <div class="row row--actions">
+          <button id="btnAnalyze" class="btn btn--primary" type="button">Проанализировать</button>
+          <button id="btnClear" class="btn btn--ghost" type="button">Очистить</button>
+        </div>
+
+        <div class="hint glass glass--thin">
+          <div class="hint__title">Подсказка</div>
+          <div class="hint__body">
+            Демо старается вытащить E‑коды (E621…), аллергены (молоко, глютен, орехи и т.д.)
+            и примерные нутриенты «на 100 г». Для точности проверяйте текст глазами.
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- Results -->
+    <section id="results" class="glass card card--results hidden" aria-live="polite">
+      <div class="card__head card__head--row">
+        <div>
+          <h2 class="card__title">Результат анализа</h2>
+          <div class="card__subtitle">Сводка и детальные блоки — ниже.</div>
+        </div>
+
+        <div class="row row--actions">
+          <button id="btnShareCard" class="btn btn--ghost" type="button">Скачать карточку</button>
+          <button id="btnSaveToHistory" class="btn btn--ghost" type="button">Сохранить</button>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div id="overallVerdict" class="verdict verdict--unknown">
+          <div id="overallTitle" class="verdict__title">—</div>
+          <div id="overallBody" class="verdict__body">—</div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric__label">E‑коды</div>
+            <div id="metricEcodes" class="metric__value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Аллергены</div>
+            <div id="metricAllergens" class="metric__value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Скрытые сахара</div>
+            <div id="metricSugars" class="metric__value">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="glass glass--thin block">
+          <div class="block__head">
+            <div class="block__title">Фрагмент состава</div>
+            <div class="block__meta">то, что удалось выделить из текста</div>
+          </div>
+          <div id="compositionSnippet" class="mono muted">—</div>
+        </div>
+
+        <div class="glass glass--thin block">
+          <div class="block__head">
+            <div class="block__title">Аллергены и триггеры</div>
+            <div class="block__meta">по ключевым словам (эвристика)</div>
+          </div>
+          <div id="allergensBlock" class="chips"></div>
+        </div>
+      </div>
+
+      <div class="glass glass--thin block">
+        <div class="block__head block__head--row">
+          <div>
+            <div class="block__title">E‑коды</div>
+            <div class="block__meta">поиск E### / E‑### и сопоставление с локальной базой</div>
+          </div>
+          <div class="block__tools">
+            <input id="ecodesFilter" class="field__control field__control--small" type="search" placeholder="Фильтр (например, 621)" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="ecodesTable">
+            <thead>
+              <tr>
+                <th>Код</th>
+                <th>Название</th>
+                <th>Тип</th>
+                <th>Риск (демо)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="glass glass--thin block">
+        <div class="block__head">
+          <div class="block__title">Светофор нутриентов (на 100 г)</div>
+          <div class="block__meta">можно отредактировать значения вручную</div>
+        </div>
+
+        <div class="row row--nutr">
+          <label class="field">
+            <span class="field__label">Сахар, г</span>
+            <input id="nutrSugar" class="field__control" inputmode="decimal" placeholder="например, 8.5" />
+          </label>
+          <label class="field">
+            <span class="field__label">Жир, г</span>
+            <input id="nutrFat" class="field__control" inputmode="decimal" placeholder="например, 12" />
+          </label>
+          <label class="field">
+            <span class="field__label">Соль, г</span>
+            <input id="nutrSalt" class="field__control" inputmode="decimal" placeholder="например, 0.8" />
+          </label>
+          <button id="btnRecalc" class="btn btn--primary btn--small" type="button">Пересчитать</button>
+        </div>
+
+        <div class="traffic">
+          <div class="traffic__item">
+            <div class="traffic__label">Сахар</div>
+            <div id="tlSugar" class="pill pill--unknown">—</div>
+          </div>
+          <div class="traffic__item">
+            <div class="traffic__label">Жир</div>
+            <div id="tlFat" class="pill pill--unknown">—</div>
+          </div>
+          <div class="traffic__item">
+            <div class="traffic__label">Соль</div>
+            <div id="tlSalt" class="pill pill--unknown">—</div>
+          </div>
+        </div>
+
+        <div class="muted small">
+          Примечание: пороги в демо — ориентиры из открытых рекомендаций; не являются медицинской рекомендацией.
+        </div>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section class="glass card">
+      <div class="card__head card__head--row">
+        <div>
+          <h2 class="card__title">История</h2>
+          <div class="card__subtitle">Сохраняется локально в браузере (последние 30 записей).</div>
+        </div>
+        <button id="btnClearHistory" class="btn btn--ghost btn--small" type="button">Очистить историю</button>
+      </div>
+
+      <div id="historyBlock" class="history muted">Пусто.</div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer__row">
+        <div class="muted">
+          LabelSpy Demo · стеклянный интерфейс. Работает как статический сайт.
+        </div>
+        <div class="muted">
+          <span class="dot"></span> OCR: локально (Tesseract.js) или Cloud (ваш endpoint).
+        </div>
+      </div>
+    </footer>
+
+    <!-- Canvas (hidden) -->
+    <canvas id="shareCanvas" width="1200" height="650" class="hidden"></canvas>
+  </main>
+
+  <!-- About -->
+  <dialog id="aboutDialog" class="modal">
+    <form method="dialog" class="modal__panel glass">
+      <div class="modal__head">
+        <div>
+          <div class="modal__title">О проекте</div>
+          <div class="modal__subtitle">Демонстрационный прототип. Проверяйте результаты.</div>
+        </div>
+        <button class="btn btn--ghost btn--small" value="cancel" type="submit" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="modal__body">
+        <p>
+          Это демо‑версия идеи LabelSpy: быстрый разбор состава продуктов питания,
+          обнаружение E‑кодов и аллергенов, а также «светофор» по нутриентам. Алгоритмы эвристические.
+        </p>
+
+        <div class="glass glass--thin block">
+          <div class="block__head">
+            <div class="block__title">Источники порогов «светофора» (для демонстрации)</div>
+            <div class="block__meta">значения могут отличаться по методикам и странам</div>
+          </div>
+          <ul class="list">
+            <li>Пример порога для соли (зелёный ≤0.3 г/100г, красный &gt;1.75 г/100г) — материалы Роспотребнадзора.</li>
+            <li>Пороговые значения для жира/сахара — часто цитируемые UK‑рекомендации (NHS) для front‑of‑pack.</li>
+          </ul>
+        </div>
+
+        <div class="muted small">
+          Если вы включаете Cloud OCR, изображение отправляется на указанный вами endpoint.
+          Не используйте в публичном сервисе открытые ключи и не забывайте про ограничения и квоты.
+        </div>
+      </div>
+
+      <div class="modal__foot">
+        <button class="btn btn--primary" value="ok" type="submit">Понятно</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Toasts -->
+  <div id="toastRoot" class="toasts" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
